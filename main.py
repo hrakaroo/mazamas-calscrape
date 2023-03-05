@@ -19,7 +19,10 @@ DATE_FORMAT = "%Y-%m-%d"
 # Columns to reference directly
 ACTIVITY_TYPE = 'Activity Type'
 ACTIVITY_NAME = 'Activity Name'
+START_DATE = 'Start Date'
+LEADER = 'Leader'
 REG_CLOSE_DATE = 'Reg. Close Date'
+REG_OPEN_DATE = 'Reg. Open Date'
 TEAM_SIZE = 'Team Size'
 NUMBER_OF_OPENINGS = 'Number of openings'
 
@@ -89,6 +92,7 @@ def read_csv(fetcher):
     :param fetcher: Function to run to fetch the csv data
     :return: List of events, with each event being represented by a simple dictionary
     """
+    # Run the fetcher and get the data to process
     data = fetcher()
 
     headers = None
@@ -106,8 +110,11 @@ def read_csv(fetcher):
             # Skip any activities we don't care about
             if event[ACTIVITY_TYPE] in IGNORE_ACTIVITY_TYPES:
                 continue
-            # Don't bother showing events that are already closed
+            # Don't show events which are already closed
             if is_past(event[REG_CLOSE_DATE]):
+                continue
+            # Don't show events which are not yet open
+            if event[REG_OPEN_DATE] is None or event[REG_OPEN_DATE] == '':
                 continue
             # Don't bother showing events which are already filled up
             if is_full(event):
@@ -133,12 +140,27 @@ def print_all_activity_types(events):
     print(f'Activity Types: {activity_types}')
 
 
-def main(args):
-    # events = read_csv(get_csv_url)
-    events = read_csv(get_csv_file)
-
+def print_events_by_type(events):
+    activity_types = {}
     for event in events:
-        print(event)
+        if event[ACTIVITY_TYPE] in activity_types:
+            activity_types[event[ACTIVITY_TYPE]].append(event)
+        else:
+            activity_types[event[ACTIVITY_TYPE]] = [event]
+    for activity_type in activity_types:
+        print(activity_type)
+        for event in activity_types[activity_type]:
+            print(f'\t{event[START_DATE]} - {event[ACTIVITY_NAME]} - {event[LEADER]}')
+        print()
+
+
+def main(args):
+    events = read_csv(get_csv_url)
+    # events = read_csv(get_csv_file)
+
+    print_events_by_type(events)
+    # for event in events:
+    #     print(event)
 
 
 # Press the green button in the gutter to run the script.
