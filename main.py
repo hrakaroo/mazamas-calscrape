@@ -34,7 +34,7 @@ TODAY = datetime.strptime(datetime.strftime(datetime.now(), DATE_FORMAT), DATE_F
 
 def get_csv_url():
     """
-    Get the calendar csv directly from their web site by building a URL
+    Get the calendar csv directly from their website by building a URL
     :return: List of csv entries (not parsed)
     """
     current_datetime = datetime.now()
@@ -50,14 +50,16 @@ def get_csv_url():
     url = CAL_URL + "?" + "&".join(options)
     print(f'Fetching url {url}')
     response = urllib.request.urlopen(url)
-    lines = [l.decode('utf-8') for l in response.readlines()]
+    lines = [line.decode('utf-8') for line in response.readlines()]
+    with open('out.csv', 'w') as fh:
+        fh.writelines(lines)
     return lines
 
 
 def get_csv_file():
     """
     Get the calendar csv from a local csv file. This is mostly for development as hitting their
-    web site directly would greatly slow down progress.
+    website directly would greatly slow down progress.
     :return: List of csv entries (not parsed)
     """
     print("Reading out.csv")
@@ -150,11 +152,11 @@ def print_events_by_type(events):
     for activity_type in activity_types:
         print(activity_type)
         for event in activity_types[activity_type]:
-            open = "          "
+            open_reg = "     "
             if event[REG_OPEN_DATE] is None or event[REG_OPEN_DATE] == '':
-                open = " not open "
+                open_reg = " N/O "
 
-            print(f'\t{event[START_DATE]} {open} - {event[ACTIVITY_NAME]} - {event[LEADER]}')
+            print(f'\t{event[START_DATE]} {open_reg} - {event[ACTIVITY_NAME]} - {event[LEADER]}')
         print()
 
 
