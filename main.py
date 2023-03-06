@@ -114,8 +114,8 @@ def read_csv(fetcher):
             if is_past(event[REG_CLOSE_DATE]):
                 continue
             # Don't show events which are not yet open
-            if event[REG_OPEN_DATE] is None or event[REG_OPEN_DATE] == '':
-                continue
+            # if event[REG_OPEN_DATE] is None or event[REG_OPEN_DATE] == '':
+            #     continue
             # Don't bother showing events which are already filled up
             if is_full(event):
                 continue
@@ -150,7 +150,11 @@ def print_events_by_type(events):
     for activity_type in activity_types:
         print(activity_type)
         for event in activity_types[activity_type]:
-            print(f'\t{event[START_DATE]} - {event[ACTIVITY_NAME]} - {event[LEADER]}')
+            open = "          "
+            if event[REG_OPEN_DATE] is None or event[REG_OPEN_DATE] == '':
+                open = " not open "
+
+            print(f'\t{event[START_DATE]} {open} - {event[ACTIVITY_NAME]} - {event[LEADER]}')
         print()
 
 
