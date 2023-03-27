@@ -13,6 +13,8 @@ IGNORE_FIELDS = {"Activity Notes", "Assistant"}
 #                  'Snowshoe', 'Partner Event', 'Meeting', 'Course'}
 IGNORE_ACTIVITY_TYPES = {'Other', 'Field Session', 'Lecture', 'Meeting'}
 
+ACTIVITY_TYPE_ORDER = ["Snowshoe", "Course", "Hike Route", "Climb Route"]
+
 # Comon date format
 DATE_FORMAT = "%Y-%m-%d"
 
@@ -21,6 +23,8 @@ ACTIVITY_TYPE = 'Activity Type'
 ACTIVITY_NAME = 'Activity Name'
 START_DATE = 'Start Date'
 LEADER = 'Leader'
+PACE = 'Pace'
+GRADE = 'Grade'
 REG_CLOSE_DATE = 'Reg. Close Date'
 REG_OPEN_DATE = 'Reg. Open Date'
 TEAM_SIZE = 'Team Size'
@@ -149,15 +153,36 @@ def print_events_by_type(events):
             activity_types[event[ACTIVITY_TYPE]].append(event)
         else:
             activity_types[event[ACTIVITY_TYPE]] = [event]
-    for activity_type in activity_types:
-        print(activity_type)
-        for event in activity_types[activity_type]:
-            open_reg = "     "
-            if event[REG_OPEN_DATE] is None or event[REG_OPEN_DATE] == '':
-                open_reg = " N/O "
 
-            print(f'\t{event[START_DATE]} {open_reg} - {event[ACTIVITY_NAME]} - {event[LEADER]}')
+    seen = {}
+    for activity_type in ACTIVITY_TYPE_ORDER:
+        if activity_type not in activity_types:
+            continue
+        seen[activity_type] = True
+        print(activity_type)
+        print_events(activity_types[activity_type])
         print()
+
+    for activity_type in activity_types:
+        if activity_type in seen:
+            continue
+        print(activity_type)
+        print_events(activity_types[activity_type])
+        print()
+
+
+def print_events(events):
+    for event in events:
+        open_reg = "       "
+        if event[REG_OPEN_DATE] is None or event[REG_OPEN_DATE] == '':
+            open_reg = "  N/O  "
+        elif not is_past(event[REG_OPEN_DATE]):
+            open_reg = '- '+event[REG_OPEN_DATE][5:]
+        pace = event[PACE]
+        if pace is None or pace == '':
+            pace = '?'
+
+        print(f'\t{event[START_DATE]} {open_reg} - {event[ACTIVITY_NAME]} - {pace}/{event[GRADE]} - {event[LEADER]}')
 
 
 def main(args):
