@@ -146,7 +146,9 @@ def print_all_activity_types(events):
     print(f'Activity Types: {activity_types}')
 
 
-def print_events_by_type(events):
+def print_events_by_type(events, by_open=False):
+
+    # Group by type
     activity_types = {}
     for event in events:
         if event[ACTIVITY_TYPE] in activity_types:
@@ -154,24 +156,30 @@ def print_events_by_type(events):
         else:
             activity_types[event[ACTIVITY_TYPE]] = [event]
 
+    # Print in the order of the ACTIVITY_TYPE_ORDER
     seen = {}
     for activity_type in ACTIVITY_TYPE_ORDER:
         if activity_type not in activity_types:
             continue
         seen[activity_type] = True
         print(activity_type)
-        print_events(activity_types[activity_type])
+        print_events(activity_types[activity_type], by_open)
         print()
 
+    # Print out any stragglers
     for activity_type in activity_types:
         if activity_type in seen:
             continue
         print(activity_type)
-        print_events(activity_types[activity_type])
+        print_events(activity_types[activity_type], by_open)
         print()
 
 
-def print_events(events):
+def print_events(events, by_open=False):
+
+    if by_open:
+        events.sort(key=lambda x: f"{x[REG_OPEN_DATE]} {x[START_DATE]}")
+        # print(events)
     for event in events:
         open_reg = "       "
         if event[REG_OPEN_DATE] is None or event[REG_OPEN_DATE] == '':
@@ -186,10 +194,12 @@ def print_events(events):
 
 
 def main(args):
+
+    by_open = len(args) == 2 and args[1] == "-reg"
     events = read_csv(get_csv_url)
     # events = read_csv(get_csv_file)
 
-    print_events_by_type(events)
+    print_events_by_type(events, by_open)
     # for event in events:
     #     print(event)
 
