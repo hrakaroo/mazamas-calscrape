@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import os.path
+import re
 import sys
 import csv
 import urllib.request
@@ -11,12 +13,14 @@ IGNORE_FIELDS = {"Activity Notes", "Assistant"}
 
 # Activity Types: {'Hike Route', 'Other', 'Field Session', 'Climb Route', 'Lecture',
 #                  'Snowshoe', 'Partner Event', 'Meeting', 'Course'}
-IGNORE_ACTIVITY_TYPES = {'Other', 'Field Session', 'Lecture', 'Meeting'}
+IGNORE_ACTIVITY_TYPES = {'Field Session', 'Lecture', 'Meeting', 'Hike Route', 'Ski Mountaineering Route'}
 
-ACTIVITY_TYPE_ORDER = ["Snowshoe", "Course", "Hike Route", "Climb Route"]
+ACTIVITY_TYPE_ORDER = ["Course", "Hike Route", "Snowshoe", "Climb Route"]
 
-# Comon date format
+# Common date format
 DATE_FORMAT = "%Y-%m-%d"
+
+NOT_INTERESTED_FILE = "not_interested.txt"
 
 # Columns to reference directly
 ACTIVITY_TYPE = 'Activity Type'
@@ -30,24 +34,22 @@ REG_OPEN_DATE = 'Reg. Open Date'
 TEAM_SIZE = 'Team Size'
 NUMBER_OF_OPENINGS = 'Number of openings'
 
-
 # We can't just use _now_ as now > today (since the hours come into play) so this basically rounds
 #  the date down to just the day
 TODAY = datetime.strptime(datetime.strftime(datetime.now(), DATE_FORMAT), DATE_FORMAT)
 
 
-def get_csv_url():
+def get_csv_url(current_datetime):
     """
     Get the calendar csv directly from their website by building a URL
     :return: List of csv entries (not parsed)
     """
-    current_datetime = datetime.now()
 
     # noinspection PyListCreation
     options = []
     # No idea what this does
     options.append("bucket=All")
-    # 90 days into the future?
+    # 90 days into the future, 90 is the max
     options.append("days=90")
     options.append("start_date=" + current_datetime.strftime(DATE_FORMAT))
 
@@ -99,7 +101,13 @@ def read_csv(fetcher):
     :return: List of events, with each event being represented by a simple dictionary
     """
     # Run the fetcher and get the data to process
-    data = fetcher()
+    data = fetcher(datetime.now())
+
+    # Either the CSV is not showing all the data for an event (like the link id) or there is a rendering
+    # bug on the website, but it appears possible for the same leader to have two different events in the
+    # same category on the same day and have only one of them appear on the web site.  To try to handle
+    # this I'm going to alert if we see a possible double schedule.
+    event_map = {}
 
     headers = None
     events = []
@@ -116,6 +124,13 @@ def read_csv(fetcher):
             # Skip any activities we don't care about
             if event[ACTIVITY_TYPE] in IGNORE_ACTIVITY_TYPES:
                 continue
+            key = event[ACTIVITY_TYPE] + ":" + event[START_DATE] + ":" + event[LEADER]
+            if key in event_map:
+                print("ALERT - Duplicate activity/event/leader %s" % key)
+                print("\t%s" % event_map[key])
+                print("\t%s" % event[ACTIVITY_NAME])
+            else:
+                event_map[key] = event[ACTIVITY_NAME]
             # Don't show events which are already closed
             if is_past(event[REG_CLOSE_DATE]):
                 continue
@@ -193,11 +208,117 @@ def print_events(events, by_open=False):
         print(f'\t{event[START_DATE]} {open_reg} - {event[ACTIVITY_NAME]} - {pace}/{event[GRADE]} - {event[LEADER]}')
 
 
+def read_not_interested():
+
+    # Specific events we are not interested in
+    events = {}
+
+    # Dates we are busy
+    dates = set()
+
+    if not os.path.exists(NOT_INTERESTED_FILE):
+        return events, dates
+
+    single_date = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    date_range = re.compile(r'^(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})$')
+
+    # Read the entire file into a list
+    with open(NOT_INTERESTED_FILE) as fh:
+        data = fh.readlines()
+
+    activity_type = None
+    for line in data:
+        is_event = line.startswith(" ")
+        line = line.strip()
+
+        # Skip blank lines
+        if len(line) == 0:
+            continue
+
+        # Skip comments
+        if line.startswith("#"):
+            # Ignore comments
+            continue
+
+        if is_event:
+            if activity_type is None:
+                print("Can't have an event without a type: %s", line)
+                continue
+            events[activity_type].append(line)
+            continue
+
+        # This is either an activity heading, or a specific date
+        if single_date.match(line) is not None:
+            dates.add(line)
+            continue
+
+        match = date_range.match(line)
+        if match is not None:
+            start_date = match.group(1)
+            end_date = match.group(2)
+            add_dates(start_date, end_date, dates)
+
+        activity_type = line
+        if activity_type not in events:
+            events[activity_type] = []
+
+    return events, dates
+
+
+def add_dates(start_date, end_date, dates):
+    y1, m1, d1 = [int(a) for a in start_date.split('-')]
+    y2, m2, d2 = [int(a) for a in end_date.split('-')]
+
+    # Hacky way to find dates between x and y
+    # Yes, not all months have 31 days, but for this it doesn't matter
+    while True:
+        date = f"{y1}-{m1:02}-{d1:02}"
+        dates.add(date)
+        d1 += 1
+        if d1 > 31:
+            d1 = 1
+            m1 += 1
+        if m1 > 12:
+            m1 = 1
+            y1 += 1
+        if y1 == y2 and m1 == m2 and d1 > d2:
+            break
+
+
+def filter_events(events, not_interested, bad_dates):
+    filtered = []
+    for event in events:
+        activity_type = event[ACTIVITY_TYPE]
+        start_date = event[START_DATE]
+        leader = event[LEADER]
+        if start_date in bad_dates:
+            # print("Bad date %s %s %s" % (activity_type, start_date, leader))
+            continue
+
+        # Create the key
+        key = start_date + " : " + leader
+        if activity_type in not_interested and key in not_interested[activity_type]:
+            # print("Skipping %s %s %s" % (activity_type, start_date, leader))
+            continue
+
+        filtered.append(event)
+
+    return filtered
+
+
 def main(args):
+
+    # Read the file of hikes we are not interested in
+    not_interested, bad_dates = read_not_interested()
 
     by_open = len(args) == 2 and args[1] == "-reg"
     events = read_csv(get_csv_url)
     # events = read_csv(get_csv_file)
+
+    # Filter events for not interested
+    if len(not_interested) > 0:
+        events = filter_events(events, not_interested, bad_dates)
+        print()
 
     print_events_by_type(events, by_open)
     # for event in events:
